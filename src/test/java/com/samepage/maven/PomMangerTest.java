@@ -52,6 +52,12 @@ public class PomMangerTest {
             PomManager pomManager = new PomManager(inputStream);
             assertNotNull(pomManager);
             pomManager.addDependency("blah.module:module-yada:1.14:runtime");
+            assertTrue(
+                pomManager.getWorkingPom().getDependencies().size()
+                    -
+                    pomManager.getOriginalPom().getDependencies().size()
+                    == 1
+            );
             pomManager.printWorking();
         } catch (IOException | XmlPullParserException e) {
             log.error(ExceptionUtils.getRootCause(e).getLocalizedMessage());
