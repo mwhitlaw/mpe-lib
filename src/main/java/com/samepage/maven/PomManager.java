@@ -1,38 +1,22 @@
 package com.samepage.maven;
 
 import lombok.Getter;
-import lombok.extern.slf4j.Slf4j;
 import org.apache.maven.model.Dependency;
 import org.apache.maven.model.Model;
 import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
 import org.apache.maven.model.io.xpp3.MavenXpp3Writer;
 import org.codehaus.plexus.util.xml.pull.XmlPullParserException;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.Writer;
 
 
-@Slf4j
 public class PomManager {
+    @Getter
     private Model originalPom;
+    @Getter
     private Model workingPom;
-    @Getter
-    private String sourceFilename;
-    @Getter
-    private String targetFilename;
-
-
-    public PomManager(String sourceFilename, String targetFilename)
-        throws IOException, XmlPullParserException {
-        this.load(new FileInputStream(new File(sourceFilename)));
-        this.sourceFilename = sourceFilename;
-        this.targetFilename = targetFilename;
-    }
 
     public PomManager(InputStream inputStream)
         throws IOException, XmlPullParserException {
@@ -45,45 +29,12 @@ public class PomManager {
         this.workingPom = this.originalPom.clone();
     }
 
-    public void save() throws IOException {
-        save(true);
-    }
-
-    public void save(boolean createBackupOnReplace) throws IOException {
-
-        if (this.targetFilename != null) {
-
-            if (createBackupOnReplace &&
-                this.sourceFilename != null &&
-                getSourceFilename().equalsIgnoreCase(getTargetFilename())) {
-
-                PomManager.outputPom(
-                    new FileWriter(
-                        new File(this.getBackupFilename())
-                    ),
-                    this.originalPom,
-                    false
-                );
-            }
-
-            PomManager.outputPom(
-                new FileWriter(
-                    new File(this.getTargetFilename())
-                ),
-                this.workingPom,
-                true
-            );
-        } else {
-            log.warn("Call to save without target filename specified");
-        }
-    }
-
     public void printOriginal() throws IOException {
         printOriginal(System.out);
     }
 
     public void printOriginal(OutputStream outputStream) throws IOException {
-        PomManager.outputPom(outputStream, this.originalPom, false);
+        this.outputPom(outputStream, this.originalPom, false);
     }
 
     public void printWorking() throws IOException {
@@ -91,20 +42,13 @@ public class PomManager {
     }
 
     public void printWorking(OutputStream outputStream) throws IOException {
-        PomManager.outputPom(outputStream, this.workingPom, true);
+        this.outputPom(outputStream, this.workingPom, true);
     }
 
-    private static void outputPom(final Writer writer, final Model model, final boolean sort) throws IOException {
+    private void outputPom(final OutputStream out, final Model model, final boolean sort) throws IOException {
         if (sort) PomManager.sort(model);
-        new MavenXpp3Writer().write(writer, model);
-    }
-
-    private static void outputPom(final OutputStream out, final Model model, final boolean sort) throws IOException {
-        if (sort) PomManager.sort(model);
-
         new MavenXpp3Writer().write(out, model);
     }
-
 
     public void addDependency(String depStr) {
         SimpleDependency.from(depStr).ifPresent(this::addDependency);
@@ -112,42 +56,45 @@ public class PomManager {
 
     public void addDependency(SimpleDependency source) {
         if (source != null) {
-            this.workingPom.addProperty(source.getVersionPropertyName(), source.getVersion());
-            this.workingPom.getDependencyManagement().addDependency(source.asMavenDependency(true));
-            this.workingPom.addDependency(source.asShortMavenDependency());
+
+            if (this.workingPom.getDependencyManagement() != null) {
+                this.workingPom.addProperty(source.getVersionPropertyName(), source.getVersion());
+                this.workingPom.getDependencyManagement().addDependency(source.asDepManDependency());
+            }
+
+            this.workingPom.addDependency(source.asDepDependency());
         }
 
     }
 
-    private String getBackupFilename() {
-        return String.format("%s_prev.xml",
-            this.sourceFilename.substring(0, this.sourceFilename.lastIndexOf("."))
-        );
-    }
-
-    private static void sort(final Model targetPom) {
-        // sort the properties
-        targetPom.setProperties(new SortedProperties(targetPom.getProperties()));
+    private static void sort(final Model pomModel) {
+        // sort the properties by replacing the Properties object with
+        // a SortedProperties object tha is a clone of the original
+        if (pomModel.getProperties() != null) {
+            pomModel.setProperties(new SortedProperties(pomModel.getProperties()));
+        }
 
         // sort the dependencyManagement dependencies
-        targetPom.getDependencyManagement().getDependencies().sort((o1, o2) -> {
-            int compareResult = o1.getScope().compareTo(o2.getScope());
-            return sortDependencies(o1, o2, compareResult);
-        });
+        if (pomModel.getDependencyManagement() != null) {
+            pomModel.getDependencyManagement().getDependencies().sort((o1, o2) -> sortDependencies(o1, o2, 0));
+        }
 
         // sort the dependencies
-        targetPom.getDependencies().sort((o1, o2) -> {
-            String effScope1 = getEffectiveScope(o1, targetPom);
-            String effScope2 = getEffectiveScope(o2, targetPom);
-            int compareResult = effScope1.compareTo(effScope2);
-            return sortDependencies(o1, o2, compareResult);
-        });
+        if (pomModel.getDependencies() != null) {
+            pomModel.getDependencies().sort((o1, o2) -> {
+                String effScope1 = getEffectiveScope(o1, pomModel);
+                String effScope2 = getEffectiveScope(o2, pomModel);
+                int compareResult = effScope1.compareTo(effScope2);
+                return sortDependencies(o1, o2, compareResult);
+            });
+        }
 
     }
 
     private static String getEffectiveScope(final Dependency dep, final Model pomModel) {
         if (dep == null) return "";
         if (dep.getScope() != null) return dep.getScope();
+        if (pomModel.getDependencyManagement() == null) return "compile";
 
         Dependency dmDep = pomModel.getDependencyManagement().getDependencies()
             .stream()
@@ -164,16 +111,16 @@ public class PomManager {
         }
     }
 
-    private static int sortDependencies(final Dependency o1, final Dependency o2, int compareResult) {
-        if (compareResult == 0) {
-            compareResult = o1.getGroupId().compareTo(o2.getGroupId());
-            if (compareResult == 0) {
+    private static int sortDependencies(final Dependency o1, final Dependency o2, int initialCompare) {
+        if (initialCompare == 0) {
+            int groupCompare = o1.getGroupId().compareTo(o2.getGroupId());
+            if (groupCompare == 0) {
                 return o1.getArtifactId().compareTo(o2.getArtifactId());
             } else {
-                return compareResult;
+                return groupCompare;
             }
         } else {
-            return compareResult;
+            return initialCompare;
         }
     }
 

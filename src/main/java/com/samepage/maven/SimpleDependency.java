@@ -33,24 +33,34 @@ public class SimpleDependency {
     }
 
     public String getVersionPropertyName() {
-        return String.format("version.%s", this.getVersion());
+        return String.format("version.%s", this.getArtifactId());
     }
 
-    public Dependency asMavenDependency(boolean useVersionProperty) {
+
+    public Dependency asDepManDependency() {
         Dependency ret = new Dependency();
         ret.setGroupId(this.getGroupId());
         ret.setArtifactId(this.getArtifactId());
-        ret.setVersion(useVersionProperty ? String.format("${%s}", this.getVersionPropertyName()) : this.getVersion());
-        ret.setType(this.getType());
-        ret.setScope(this.getScope());
-
+        if ("war".equalsIgnoreCase(this.getType())) {
+            ret.setType(this.getType());
+        }
+        ret.setVersion(String.format("${version.%s}", this.getArtifactId()));
         return ret;
     }
 
-    public Dependency asShortMavenDependency() {
+    public Dependency asDepDependency() {
         Dependency ret = new Dependency();
         ret.setGroupId(this.getGroupId());
         ret.setArtifactId(this.getArtifactId());
+        if ("war".equalsIgnoreCase(this.getType())) {
+            ret.setType(this.getType());
+        }
+        ret.setVersion(String.format("${version.%s}", this.getArtifactId()));
+        if (this.getScope() != null) {
+            ret.setScope(this.getScope());
+        } else {
+            ret.setScope("compile");
+        }
         return ret;
     }
 
