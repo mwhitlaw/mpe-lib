@@ -6,7 +6,7 @@ import org.codehaus.plexus.util.xml.pull.XmlPullParserException;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.io.InputStream;
+import java.net.URISyntaxException;
 
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -17,9 +17,8 @@ public class PomMangerTest {
     @Test
     public void addDependencyToRootPomTest() {
         try {
-            InputStream inputStream = PomMangerTest.class.getResourceAsStream("/rootpom.xml");
-            assertNotNull(inputStream);
-            PomManager pomManager = new PomManager(inputStream);
+
+            PomManager pomManager = new PomManager("/simple_project", getClass());
             assertNotNull(pomManager);
             pomManager.addDependency("blah.root:root-yada:1.7:provided");
             assertTrue(
@@ -38,7 +37,7 @@ public class PomMangerTest {
                     == 1
             );
             pomManager.printWorking();
-        } catch (IOException | XmlPullParserException e) {
+        } catch (IOException | XmlPullParserException | URISyntaxException e) {
             log.error(ExceptionUtils.getRootCause(e).getLocalizedMessage());
         }
 
@@ -47,9 +46,7 @@ public class PomMangerTest {
     @Test
     public void addDependencyToModulePomTest() {
         try {
-            InputStream inputStream = PomMangerTest.class.getResourceAsStream("/modulepom.xml");
-            assertNotNull(inputStream);
-            PomManager pomManager = new PomManager(inputStream);
+            PomManager pomManager = new PomManager("/multi_module_project", getClass());
             assertNotNull(pomManager);
             pomManager.addDependency("blah.module:module-yada:1.14:runtime");
             assertTrue(
@@ -59,9 +56,21 @@ public class PomMangerTest {
                     == 1
             );
             pomManager.printWorking();
-        } catch (IOException | XmlPullParserException e) {
+        } catch (IOException | XmlPullParserException | URISyntaxException e) {
             log.error(ExceptionUtils.getRootCause(e).getLocalizedMessage());
         }
 
     }
+
+    @Test
+    public void testLoadMultiModulePom() {
+        try {
+            PomManager pomManager = new PomManager("/multi_module_project", getClass());
+            assertNotNull(pomManager);
+            pomManager.printWorking();
+        } catch (IOException | XmlPullParserException | URISyntaxException e) {
+            log.error(ExceptionUtils.getRootCause(e).getLocalizedMessage());
+        }
+    }
+
 }

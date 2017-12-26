@@ -7,26 +7,108 @@ import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
 import org.apache.maven.model.io.xpp3.MavenXpp3Writer;
 import org.codehaus.plexus.util.xml.pull.XmlPullParserException;
 
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.URISyntaxException;
+import java.net.URL;
+import java.util.LinkedList;
+import java.util.List;
 
 
 public class PomManager {
     @Getter
+    private File dir;
+    private Class loadingClass;
+    @Getter
     private Model originalPom;
     @Getter
     private Model workingPom;
+    @Getter
+    private PomManager parent;
+    @Getter
+    private List<PomManager> children;
 
-    public PomManager(InputStream inputStream)
-        throws IOException, XmlPullParserException {
-        this.load(inputStream);
+    public PomManager() throws XmlPullParserException, IOException, URISyntaxException {
+        this("./", null, null);
     }
 
-    private void load(InputStream inputStream)
-        throws IOException, XmlPullParserException {
+    public PomManager(String pomDir) throws XmlPullParserException, IOException, URISyntaxException {
+        this(pomDir, null, null);
+    }
+
+    public PomManager(String pomDir, Class loadingClass) throws XmlPullParserException, IOException, URISyntaxException {
+        this(pomDir, null, loadingClass);
+    }
+
+    public PomManager(String pomDir, PomManager parent) throws XmlPullParserException, IOException, URISyntaxException {
+        this(pomDir, parent, parent.loadingClass);
+    }
+
+
+    public PomManager(String pomDir, PomManager parent, Class loadingClass) throws IOException, XmlPullParserException, URISyntaxException {
+        this.parent = parent;
+        this.loadingClass = loadingClass;
+
+        if (this.loadingClass != null) {
+            URL url = this.loadingClass.getResource(pomDir);
+            if (url != null) {
+                this.dir = new File(url.toURI());
+            } else {
+                StringBuilder pomDirAdj = new StringBuilder();
+                String[] dirParts = pomDir.split("/");
+                int level = getLevel() + 2;
+                while (dirParts.length > 0 && level > 0) {
+                    pomDirAdj.append("/").append(dirParts[dirParts.length - level]);
+                    level--;
+                }
+                url = this.loadingClass.getResource(pomDirAdj.toString());
+                if (url != null) {
+                    this.dir = new File(url.toURI());
+                }
+            }
+        } else {
+            this.dir = new File(pomDir);
+        }
+        this.load();
+    }
+
+    private void load() throws IOException, XmlPullParserException, URISyntaxException {
+        InputStream inputStream = new FileInputStream(new File(this.dir, "pom.xml"));
         this.originalPom = new MavenXpp3Reader().read(inputStream);
         this.workingPom = this.originalPom.clone();
+        this.children = new LinkedList<>();
+        if (this.workingPom.getModules() != null) {
+            for (String moduleName : this.workingPom.getModules()) {
+                File moduleDir = new File(this.dir, moduleName);
+                PomManager modulePomManager = new PomManager(moduleDir.getPath(), this.loadingClass);
+                this.children.add(modulePomManager);
+            }
+        }
+    }
+
+    public boolean isRoot() {
+        return this.parent == null;
+    }
+
+    public PomManager getRoot() {
+        PomManager ret = this;
+        while (!ret.isRoot()) {
+            ret = ret.parent;
+        }
+        return ret;
+    }
+
+    public int getLevel() {
+        int ret = 0;
+        PomManager c = this;
+        while(!c.isRoot()) {
+            ret++;
+            c = this.parent;
+        }
+        return ret;
     }
 
     public void printOriginal() throws IOException {
@@ -35,6 +117,9 @@ public class PomManager {
 
     public void printOriginal(OutputStream outputStream) throws IOException {
         this.outputPom(outputStream, this.originalPom, false);
+        for (PomManager child : this.children) {
+            child.printWorking(outputStream);
+        }
     }
 
     public void printWorking() throws IOException {
@@ -43,6 +128,9 @@ public class PomManager {
 
     public void printWorking(OutputStream outputStream) throws IOException {
         this.outputPom(outputStream, this.workingPom, true);
+        for (PomManager child : this.children) {
+            child.printWorking(outputStream);
+        }
     }
 
     private void outputPom(final OutputStream out, final Model model, final boolean sort) throws IOException {

@@ -64,6 +64,12 @@ public class SimpleDependency {
         return ret;
     }
 
+    public static Object someMethod() {
+        {
+            System.out.println("Blah");
+        }
+        return null;
+    }
     public static Optional<SimpleDependency> from(String depStr) {
         if (depStr == null || depStr.isEmpty()) {
             return Optional.empty();

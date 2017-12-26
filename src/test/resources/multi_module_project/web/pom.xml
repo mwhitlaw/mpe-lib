@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <artifactId>ota-accounting-web</artifactId>
+    <packaging>war</packaging>
+
+    <parent>
+        <groupId>allegianttravel.ota-accounting</groupId>
+        <artifactId>ota-accounting-parent</artifactId>
+        <version>1.5-SNAPSHOT</version>
+    </parent>
+
+    <name>${project.artifactId}</name>
+
+    <dependencies>
+        <dependency>
+            <groupId>allegianttravel.ota-accounting</groupId>
+            <artifactId>ota-accounting-service</artifactId>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>allegianttravel.ota-accounting</groupId>
+            <artifactId>ota-accounting-client</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.swagger</groupId>
+            <artifactId>swagger-annotations</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>allegianttravel.framework.steps</groupId>
+            <artifactId>steps-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>allegianttravel.framework.steps</groupId>
+            <artifactId>steps-webutil</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.jboss.spec</groupId>
+            <artifactId>jboss-javaee-web-6.0</artifactId>
+            <scope>provided</scope>
+            <type>pom</type>
+        </dependency>
+        <dependency>
+            <groupId>joda-time</groupId>
+            <artifactId>joda-time</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.googlecode.json-simple</groupId>
+            <artifactId>json-simple</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.bgee.log4jdbc-log4j2</groupId>
+            <artifactId>log4jdbc-log4j2-jdbc4.1</artifactId>
+        </dependency>
+
+    </dependencies>
+
+    <build>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+            </resource>
+        </resources>
+
+        <plugins>
+            <!--Swagger incorporation Start -->
+
+            <!-- generate the swagger json and/or yaml -->
+            <plugin>
+                <groupId>com.github.kongchen</groupId>
+                <artifactId>swagger-maven-plugin</artifactId>
+                <version>${version.swagger.plugin}</version>
+                <configuration>
+                    <apiSources>
+                        <apiSource>
+                            <springmvc>false</springmvc>
+                            <locations>com.allegianttravel.ota.accounting.rest</locations>
+                            <schemes>http,https</schemes>
+                            <host>localhost:8080</host>
+                            <basePath>/ota-accounting/v1/api</basePath>
+                            <outputFormats>yaml,json</outputFormats>
+                            <info>
+                                <title>OTA-ACCOUNTING</title>
+                                <version>v1</version>
+                                <!-- use markdown here because I'm using markdown for output,
+                                if you need to use html or other markup language, you need to use your target language,
+                                 and note escape your description for xml -->
+                                <description>
+                                    WebService exposing ota-accounting functionality to OrderTransactions, GLTransactions, GLPosts and AccountingConfigs
+                                </description>
+                                <termsOfService>
+                                    http://www.github.com/kongchen/swagger-maven-plugin
+                                </termsOfService>
+                                <contact>
+                                    <email>mike.whitlaw@gmail.com</email>
+                                    <name>Mike Whitlaw</name>
+                                </contact>
+                                <license>
+                                    <url>http://www.apache.org/licenses/LICENSE-2.0.html</url>
+                                    <name>Apache 2.0</name>
+                                </license>
+                            </info>
+                            <!-- Support classpath or file absolute path here.
+                            1) classpath e.g: "classpath:/markdown.hbs", "classpath:/templates/hello.html"
+                            2) file e.g: "${basedir}/src/main/resources/markdown.hbs",
+                                "${basedir}/src/main/resources/template/hello.html" -->
+                            <templatePath>${basedir}/templates/strapdown.html.hbs</templatePath>
+                            <outputPath>${project.build.directory}/generated/docs/api/index.html</outputPath>
+                            <swaggerDirectory>${project.build.directory}/generated/docs/api</swaggerDirectory>
+                        </apiSource>
+                    </apiSources>
+                </configuration>
+                <executions>
+                    <execution>
+                        <phase>compile</phase>
+                        <goals>
+                            <goal>generate</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+
+            <!-- Download the swagger-ui -->
+            <!--<plugin>-->
+                <!--<groupId>com.googlecode.maven-download-plugin</groupId>-->
+                <!--<artifactId>download-maven-plugin</artifactId>-->
+                <!--<version>${version.download-maven-plugin}</version>-->
+                <!--<executions>-->
+                    <!--<execution>-->
+                        <!--<id>swagger-ui</id>-->
+                        <!--<goals>-->
+                            <!--<goal>wget</goal>-->
+                        <!--</goals>-->
+                        <!--<configuration>-->
+                            <!--<url>https://github.com/swagger-api/swagger-ui/archive/v${version.swagger.ui}.tar.gz</url>-->
+                            <!--<unpack>true</unpack>-->
+                            <!--<outputDirectory>${project.build.directory}</outputDirectory>-->
+                        <!--</configuration>-->
+                    <!--</execution>-->
+                <!--</executions>-->
+            <!--</plugin>-->
+
+
+            <plugin>
+                <artifactId>maven-resources-plugin</artifactId>
+                <version>${version.maven-resources-plugin}</version>
+                <executions>
+                    <execution>
+                        <id>copy-resources</id>
+                        <phase>compile</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${basedir}/src/main/webapp/docs/api</outputDirectory>
+                            <resources>
+                                <resource>
+                                    <directory>${project.build.directory}/generated/docs/api</directory>
+                                    <filtering>true</filtering>
+                                    <!--<excludes>-->
+                                        <!--<exclude>index.html</exclude>-->
+                                    <!--</excludes>-->
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+
+            <!--Swagger incorporation End -->
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-war-plugin</artifactId>
+                <configuration>
+                    <webResources>
+                        <resource>
+                            <filtering>true</filtering>
+                            <directory>src/main/webapp</directory>
+                            <includes>
+                                <include>index.jsp</include>
+                                <include>info.json</include>
+                            </includes>
+                        </resource>
+                    </webResources>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>
