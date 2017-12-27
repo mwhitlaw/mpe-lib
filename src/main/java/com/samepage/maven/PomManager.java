@@ -2,6 +2,7 @@ package com.samepage.maven;
 
 import lombok.Getter;
 import org.apache.maven.model.Dependency;
+import org.apache.maven.model.DependencyManagement;
 import org.apache.maven.model.Model;
 import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
 import org.apache.maven.model.io.xpp3.MavenXpp3Writer;
@@ -89,6 +90,60 @@ public class PomManager {
         }
     }
 
+    public List<Problem> getProblems() {
+        List<Problem> ret = new LinkedList<>();
+        for (Dependency dependency : this.getWorkingPom().getDependencies()) {
+            if (dependency.getVersion() != null && !dependency.getVersion().isEmpty()) {
+                ret.add(new Problem(Problem.Type.DEP_WITH_VERSION, dependency, this.dir.toString()));
+            }
+            if (dependency.getExclusions() != null && dependency.getExclusions().size() > 0) {
+                ret.add(new Problem(Problem.Type.DEP_WITH_EXCLUSION, dependency, this.dir.toString()));
+            }
+            if (dependency.getScope() == null || dependency.getScope().isEmpty()) {
+                ret.add(new Problem(Problem.Type.DEP_WITHOUT_SCOPE, dependency, this.dir.toString()));
+            }
+            Dependency dmDep = getDmDep(dependency);
+            if (dmDep == null) {
+                ret.add(new Problem(Problem.Type.DEP_WITHOUT_DMDEP, dependency, this.dir.toString()));
+            }
+        }
+        return ret;
+    }
+
+    public Dependency getDmDep(Dependency dep) {
+        if (dep == null) return null;
+        PomManager rootPm = this.getRoot();
+        DependencyManagement dm = rootPm.getWorkingPom().getDependencyManagement();
+        if (dm == null) {
+            return null;
+        }
+        List<Dependency> rootDmDeps = dm.getDependencies();
+        if (rootDmDeps == null || rootDmDeps.size() == 0) {
+            return null;
+        }
+        Dependency ret = null;
+        for (Dependency dmDep : rootDmDeps) {
+            if (compareDeps(dmDep, dep) == 0) {
+                ret = dmDep;
+            }
+        }
+        return ret;
+    }
+
+    public int compareDeps(Dependency dep1, Dependency dep2) {
+        if (dep1 == null && dep2 == null) return 0;
+        if (dep1 == null) return -1;
+        if (dep2 == null) return 1;
+
+        int ret = dep1.getGroupId().compareTo(dep2.getGroupId());
+        if (ret == 0) {
+            return dep1.getArtifactId().compareTo(dep2.getArtifactId());
+        } else {
+            return ret;
+        }
+    }
+
+
     public boolean isRoot() {
         return this.parent == null;
     }
@@ -104,7 +159,7 @@ public class PomManager {
     public int getLevel() {
         int ret = 0;
         PomManager c = this;
-        while(!c.isRoot()) {
+        while (!c.isRoot()) {
             ret++;
             c = this.parent;
         }
